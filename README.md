@@ -9,7 +9,7 @@ A Zig command-line input library!
 ```zig
 const zinput = @import("zinput");
 
-const my_string = zinput.askStringUnsized(allocator, "I need a string!");
+const my_string = try zinput.askStringUnsized(allocator, "I need a string!");
 defer allocator.free(my_string);
 ```
 
