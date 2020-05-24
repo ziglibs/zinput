@@ -12,10 +12,6 @@ pub fn askString(allocator: *std.mem.Allocator, prompt: []const u8, max_size: us
     return if (std.mem.endsWith(u8, result, "\r")) result[0..(result.len - 1)] else result;
 }
 
-pub fn askStringUnsized(allocator: *std.mem.Allocator, prompt: []const u8) ![]u8 {
-    return askString(allocator, prompt, @sizeOf(usize));
-}
-
 pub fn askBool(prompt: []const u8) !bool {
     const in = std.io.getStdIn().inStream();
     const out = std.io.getStdOut().outStream();
