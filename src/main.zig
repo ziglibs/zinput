@@ -40,7 +40,7 @@ test "basic input functionality" {
 
     std.debug.warn("Welcome to the ZLS configuration wizard! (insert mage emoji here)\n", .{});
 
-    const stdp = try askStringUnsized(testing.allocator, "What is your Zig lib path (path that contains the 'std' folder)?");
+    const stdp = try askString(testing.allocator, "What is your Zig lib path (path that contains the 'std' folder)?", 128);
     const snippet = try askBool("Do you want to enable snippets?");
     const style = try askBool("Do you want to enable style warnings?");
 
