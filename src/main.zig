@@ -1,101 +1,58 @@
 const std = @import("std");
 const testing = std.testing;
 
-pub const QueryType = union(enum) {
-    text,
-    boolean
-};
+pub fn askString(allocator: *std.mem.Allocator, prompt: []const u8, max_size: usize) ![]u8 {
+    const in = std.io.getStdIn().inStream();
+    const out = std.io.getStdOut().outStream();
 
-pub const Query = struct {
-    prompt: []const u8,
-    max_size: ?usize = null,
-    
-    query_type: QueryType = QueryType.text
-};
+    _ = try out.write(prompt);
+    _ = try out.write(" ");
 
-pub const Result = union(enum) {
-    text: []u8,
-    boolean: bool
-};
+    const result = try in.readUntilDelimiterAlloc(allocator, '\n', max_size);
+    return if (std.mem.endsWith(u8, result, "\r")) result[0..(result.len - 1)] else result;
+}
 
-pub const Asker = struct {
-    const Self = @This();
+pub fn askStringUnsized(allocator: *std.mem.Allocator, prompt: []const u8) ![]u8 {
+    return askString(allocator, prompt, @sizeOf(usize));
+}
 
-    allocator: *std.mem.Allocator,
-    default_max_size: usize,
+pub fn askBool(prompt: []const u8) !bool {
+    const in = std.io.getStdIn().inStream();
+    const out = std.io.getStdOut().outStream();
 
-    pub fn init(allocator: *std.mem.Allocator) Self {
-        return Self.initWithMaxSize(allocator, @sizeOf(usize));
-    }
+    var buffer: [1]u8 = undefined;
 
-    pub fn initWithMaxSize(allocator: *std.mem.Allocator, max_size: usize) Self {
-        return Self{
-            .allocator = allocator,
-            .default_max_size = max_size
-        };
-    }
+    while (true) {
+        _ = try out.write(prompt);
+        _ = try out.write(" (y/n) ");
 
-    /// Caller must free memory with `asker.free(result)`.
-    pub fn ask(self: Self, query: Query) !Result {
+        const read = in.read(&buffer) catch continue;
+        try in.skipUntilDelimiterOrEof('\n');
 
-        const in_stream = std.io.getStdIn().inStream();
-        const out_stream = std.io.getStdOut().outStream();
+        if (read == 0) return error.EndOFStream;
 
-        _ = try out_stream.write(query.prompt);
-        _ = try out_stream.write(" ");
-
-        if (query.query_type == .boolean) {
-            _ = try out_stream.write("(y/n) ");
-        }
-
-        var result = try in_stream.readUntilDelimiterAlloc(self.allocator, '\n', query.max_size orelse self.default_max_size);
-        result = result[0..(result.len - 1)];
-
-        switch (query.query_type) {
-            .boolean => {
-                defer self.allocator.free(result);
-                if (std.mem.eql(u8, result, "y") or std.mem.eql(u8, result, "yes")) {
-                    return Result{ .boolean = true };
-                } else if (std.mem.eql(u8, result, "n") or std.mem.eql(u8, result, "no")) {
-                    return Result{ .boolean = false };
-                } else {
-                    return self.ask(query);
-                }
-            },
-            else => return Result{ .text = result }
+        switch (buffer[0]) {
+            'y' => return true,
+            'n' => return false,
+            else => continue
         }
     }
-
-    pub fn free(self: Self, result: Result) void {
-        switch (result) {
-            .text => |text| {
-                self.allocator.free(text);
-            },
-            else => {}
-        }
-    }
-};
+}
 
 test "basic input functionality" {
     std.debug.warn("\n\n", .{});
 
     std.debug.warn("Welcome to the ZLS configuration wizard! (insert mage emoji here)\n", .{});
 
-    const std_query = Query{ .prompt = "What is your Zig lib path (path that contains the 'std' folder)?" };
-    const snippet_query = Query{ .prompt = "Do you want to enable snippets?", .query_type = .boolean };
-    const style_query = Query{ .prompt = "Do you want to enable style warnings?", .query_type = .boolean };
+    const stdp = try askStringUnsized(testing.allocator, "What is your Zig lib path (path that contains the 'std' folder)?");
+    const snippet = try askBool("Do you want to enable snippets?");
+    const style = try askBool("Do you want to enable style warnings?");
 
-    var asker = Asker.init(testing.allocator);
-
-    const stdp = try asker.ask(std_query);
-    const snippet = try asker.ask(snippet_query);
-    const style = try asker.ask(style_query);
-
-    defer asker.free(stdp);
-    defer asker.free(snippet);
-    defer asker.free(style);
+    defer testing.allocator.free(stdp);
 
     std.debug.warn("{} {} {}", .{stdp, snippet, style});
+
+    // std.debug.warn("{} {} {}", .{stdp, snippet, style});
 
     std.debug.warn("\n\n", .{});
 }
