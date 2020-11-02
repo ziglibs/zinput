@@ -26,7 +26,7 @@ pub fn askDirPath(allocator: *std.mem.Allocator, prompt: []const u8, max_size: u
             allocator.free(path);
             continue;
         }
-        
+
         var dir = std.fs.cwd().openDir(path, std.fs.Dir.OpenDirOptions{}) catch {
             _ = try out.write(ansi.Foreground(ansi.Red) ++ "Error: Invalid directory, please try again.\n\n" ++ ansi.Reset());
             allocator.free(path);
@@ -57,7 +57,7 @@ pub fn askBool(prompt: []const u8) !bool {
         switch (buffer[0]) {
             'y' => return true,
             'n' => return false,
-            else => continue
+            else => continue,
         }
     }
 }
@@ -90,11 +90,11 @@ pub fn askSelectOne(prompt: []const u8, comptime options: type) !options {
             continue;
         }) orelse return error.EndOfStream;
         result = if (std.mem.endsWith(u8, result, "\r")) result[0..(result.len - 1)] else result;
-        
+
         inline for (@typeInfo(options).Enum.fields) |option|
             if (std.mem.eql(u8, option.name, result))
                 return @intToEnum(options, option.value);
-                // return option.value;
+        // return option.value;
 
         _ = try out.write(ansi.Foreground(ansi.Red) ++ "Error: Invalid option, please try again.\n" ++ ansi.Reset());
     }
@@ -114,9 +114,7 @@ test "basic input functionality" {
 
     // defer testing.allocator.free(select);
 
-    if (select == .VSCode) {
-
-    }
+    if (select == .VSCode) {}
 
     std.debug.warn("\n\n", .{});
 }
