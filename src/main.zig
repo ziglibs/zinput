@@ -92,7 +92,7 @@ pub fn askSelectOne(prompt: []const u8, comptime options: type) !options {
         result = if (std.mem.endsWith(u8, result, "\r")) result[0..(result.len - 1)] else result;
 
         inline for (@typeInfo(options).Enum.fields) |option|
-            if (std.mem.eql(u8, option.name, result))
+            if (std.ascii.eqlIgnoreCase(u8, option.name, result))
                 return @intToEnum(options, option.value);
         // return option.value;
 
