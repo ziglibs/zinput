@@ -3,30 +3,6 @@ const ansi = @import("ansi.zig");
 const testing = std.testing;
 
 const windows = std.os.windows;
-// https://docs.microsoft.com/en-us/windows/console/getconsolemode
-extern "kernel32" fn GetConsoleMode(h_console: windows.HANDLE, mode: *windows.DWORD) callconv(if (std.builtin.arch == .i386) .Stdcall else .C) windows.BOOL;
-
-pub fn terminalSupportsAnsiColor(h_console: std.os.fd_t) bool {
-    if (std.builtin.os.tag == .windows) {
-        var mode: windows.DWORD = 0;
-        if (GetConsoleMode(h_console, &mode) != windows.FALSE) {
-            const ENABLE_VIRTUAL_TERMINAL_PROCESSING: windows.DWORD = 0x0004;
-            if (mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING != 0)
-                return true;            
-        } 
-
-        // Check if we run under ConEmu
-        const wstr = std.unicode.utf8ToUtf16LeStringLiteral;
-        if (std.os.getenvW(wstr("ConEmuANSI"))) |val| {
-            if (std.mem.eql(u16, val, wstr("ON")))
-                return true;
-        }
-
-        return false;
-    }
-
-    return true;
-}
 
 const Fg = enum {
     Black,
@@ -37,7 +13,6 @@ const Fg = enum {
     Magenta,
     Cyan,
     LightGray,
-    Default,
     DarkGray,
     LightRed,
     LightGreen,
@@ -57,7 +32,6 @@ const Fg = enum {
             Fg.Magenta => ansi.Foreground(ansi.Magenta),
             Fg.Cyan => ansi.Foreground(ansi.Cyan),
             Fg.LightGray => ansi.Foreground(ansi.LightGray),
-            Fg.Default => ansi.Foreground(ansi.Default),
             Fg.DarkGray => ansi.Foreground(ansi.DarkGray),
             Fg.LightRed => ansi.Foreground(ansi.LightRed),
             Fg.LightGreen => ansi.Foreground(ansi.LightGreen),
@@ -66,6 +40,32 @@ const Fg = enum {
             Fg.LightMagenta => ansi.Foreground(ansi.LightMagenta),
             Fg.LightCyan => ansi.Foreground(ansi.LightCyan),
             Fg.White => ansi.Foreground(ansi.White),
+        };
+    }
+
+    fn winConAttribValue(self: Fg) windows.DWORD {
+        const FOREGROUND_BLUE      = 0x0001; // text color contains blue.
+        const FOREGROUND_GREEN     = 0x0002; // text color contains green.
+        const FOREGROUND_RED       = 0x0004; // text color contains red.
+        const FOREGROUND_INTENSITY = 0x0008; // text color is intensified.
+
+        return switch (self) {
+            Fg.Black => 0,
+            Fg.Red => FOREGROUND_RED,
+            Fg.Green => FOREGROUND_GREEN,
+            Fg.Yellow => FOREGROUND_GREEN | FOREGROUND_RED,
+            Fg.Blue => FOREGROUND_BLUE,
+            Fg.Magenta => FOREGROUND_RED | FOREGROUND_BLUE,
+            Fg.Cyan => FOREGROUND_GREEN | FOREGROUND_BLUE,
+            Fg.LightGray => FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE,
+            Fg.DarkGray => FOREGROUND_INTENSITY,
+            Fg.LightRed => FOREGROUND_RED | FOREGROUND_INTENSITY,
+            Fg.LightGreen => FOREGROUND_GREEN | FOREGROUND_INTENSITY,
+            Fg.LightYellow => FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY,
+            Fg.LightBlue => FOREGROUND_BLUE | FOREGROUND_INTENSITY,
+            Fg.LightMagenta => FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_INTENSITY,
+            Fg.LightCyan => FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_INTENSITY,
+            Fg.White => FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY,
         };
     }
 };
@@ -79,7 +79,7 @@ const ColorWriter = struct {
     pub fn init(output: std.fs.File) Self {
         return Self {
             .writer = output.writer(),
-            .have_color = terminalSupportsAnsiColor(output.handle),
+            .have_color = Self.terminalSupportsAnsiColor(output.handle),
         };
     }
 
@@ -104,6 +104,30 @@ const ColorWriter = struct {
 
     pub fn writeAll(self: *const Self, val: []const u8) !void {
         try self.writer.writeAll(val);
+    }
+   
+    extern "kernel32" fn GetConsoleMode(h_console: windows.HANDLE, mode: *windows.DWORD) callconv(if (std.builtin.arch == .i386) .Stdcall else .C) windows.BOOL;    
+
+    pub fn terminalSupportsAnsiColor(h_console: std.os.fd_t) bool {
+        if (std.builtin.os.tag == .windows) {
+            var mode: windows.DWORD = 0;
+            if (Self.GetConsoleMode(h_console, &mode) != windows.FALSE) {
+                const ENABLE_VIRTUAL_TERMINAL_PROCESSING: windows.DWORD = 0x0004;
+                if (mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING != 0)
+                    return true;            
+            } 
+
+            // Check if we run under ConEmu
+            const wstr = std.unicode.utf8ToUtf16LeStringLiteral;
+            if (std.os.getenvW(wstr("ConEmuANSI"))) |val| {
+                if (std.mem.eql(u16, val, wstr("ON")))
+                    return true;
+            }
+
+            return false;
+        }
+
+        return true;
     }
 };
 
