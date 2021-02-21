@@ -29,8 +29,6 @@ pub fn terminalSupportsAnsiColor(h_console: std.os.fd_t) bool {
 }
 
 const Fg = enum {
-    Reset,
-
     Black,
     Red,
     Green,
@@ -51,7 +49,6 @@ const Fg = enum {
 
     fn ansiValue(self: Fg) []const u8 {
         return switch (self) {
-            Fg.Reset => ansi.Reset(),
             Fg.Black => ansi.Foreground(ansi.Black),
             Fg.Red => ansi.Foreground(ansi.Red),
             Fg.Green => ansi.Foreground(ansi.Green),
@@ -88,17 +85,21 @@ const ColorWriter = struct {
 
     pub fn writeSeq(self: *const Self, seq: anytype) !void {
         comptime var i: usize = 0;
+        comptime var doReset = false;
         inline while (i < seq.len) : (i += 1) {
             const val = seq[i];
             switch (@TypeOf(val)) {
                 Fg => {
                     if (self.have_color) {
                         try self.writeAll(val.ansiValue());
+                        doReset = true;
                     }
                 },
                 else => try self.writeAll(val),
             }
         }
+        if (doReset)
+            try self.writeAll(ansi.Reset());
     }
 
     pub fn writeAll(self: *const Self, val: []const u8) !void {
@@ -111,7 +112,7 @@ pub fn askString(allocator: *std.mem.Allocator, prompt: []const u8, max_size: us
     const in = std.io.getStdIn().reader();
     const out = ColorWriter.init(std.io.getStdOut());
 
-    try out.writeSeq(.{ Fg.Cyan, "? ", Fg.White, prompt, Fg.Reset });
+    try out.writeSeq(.{ Fg.Cyan, "? ", Fg.White, prompt });
 
     const result = try in.readUntilDelimiterAlloc(allocator, '\n', max_size);
     return if (std.mem.endsWith(u8, result, "\r")) result[0..(result.len - 1)] else result;
@@ -124,13 +125,13 @@ pub fn askDirPath(allocator: *std.mem.Allocator, prompt: []const u8, max_size: u
     while (true) {
         const path = try askString(allocator, prompt, max_size);
         if (!std.fs.path.isAbsolute(path)) {
-            try out.writeSeq(.{ Fg.Red, "Error: Invalid directory, please try again.\n\n", Fg.Reset });
+            try out.writeSeq(.{ Fg.Red, "Error: Invalid directory, please try again.\n\n" });
             allocator.free(path);
             continue;
         }
 
         var dir = std.fs.cwd().openDir(path, std.fs.Dir.OpenDirOptions{}) catch {
-            try cw.writeSequence(.{ Fg.Red, "Error: Invalid directory, please try again.\n\n", Fg.Reset});
+            try cw.writeSequence(.{ Fg.Red, "Error: Invalid directory, please try again.\n\n"});
             allocator.free(path);
             continue;
         };
@@ -147,7 +148,7 @@ pub fn askBool(prompt: []const u8) !bool {
     var buffer: [1]u8 = undefined;
 
     while (true) {
-        try out.writeSeq(.{ Fg.Cyan, "? ", Fg.White, prompt, Fg.DarkGray, " (y/n) > ", Fg.Reset });
+        try out.writeSeq(.{ Fg.Cyan, "? ", Fg.White, prompt, Fg.DarkGray, " (y/n) > " });
 
         const read = in.read(&buffer) catch continue;
         try in.skipUntilDelimiterOrEof('\n');
@@ -166,7 +167,7 @@ pub fn askSelectOne(prompt: []const u8, comptime options: type) !options {
     const in = std.io.getStdIn().reader();
     const out = ColorWriter.init(std.io.getStdOut());
 
-    try out.writeSeq(.{ Fg.Cyan, "? ", Fg.White, prompt, Fg.DarkGray, " (select one)", Fg.Reset, "\n\n" });
+    try out.writeSeq(.{ Fg.Cyan, "? ", Fg.White, prompt, Fg.DarkGray, " (select one)", "\n\n" });
 
     comptime var max_size: usize = 0;
     inline for (@typeInfo(options).Enum.fields) |option| {
@@ -177,11 +178,11 @@ pub fn askSelectOne(prompt: []const u8, comptime options: type) !options {
     while (true) {
         var buffer: [max_size + 1]u8 = undefined;
 
-        try out.writeSeq(.{ Fg.DarkGray, "\n>", Fg.Reset, " " });
+        try out.writeSeq(.{ Fg.DarkGray, "\n>", " " });
 
         var result = (in.readUntilDelimiterOrEof(&buffer, '\n') catch {
             try in.skipUntilDelimiterOrEof('\n');
-            try out.writeSeq(.{ Fg.Red, "Error: Invalid option, please try again.\n", Fg.Reset });
+            try out.writeSeq(.{ Fg.Red, "Error: Invalid option, please try again.\n" });
             continue;
         }) orelse return error.EndOfStream;
         result = if (std.mem.endsWith(u8, result, "\r")) result[0..(result.len - 1)] else result;
@@ -191,7 +192,7 @@ pub fn askSelectOne(prompt: []const u8, comptime options: type) !options {
                 return @intToEnum(options, option.value);
         // return option.value;
 
-        try out.writeSeq(.{ Fg.Red, "Error: Invalid option, please try again.\n", Fg.Reset });
+        try out.writeSeq(.{ Fg.Red, "Error: Invalid option, please try again.\n" });
     }
 
     // return undefined;
