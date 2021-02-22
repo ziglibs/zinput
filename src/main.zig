@@ -1,152 +1,11 @@
 const std = @import("std");
-const ansi = @import("ansi.zig");
 const testing = std.testing;
-
-const windows = std.os.windows;
-
-const Fg = enum {
-    Black,
-    Red,
-    Green,
-    Yellow,
-    Blue,
-    Magenta,
-    Cyan,
-    LightGray,
-    DarkGray,
-    LightRed,
-    LightGreen,
-    LightYellow,
-    LightBlue,
-    LightMagenta,
-    LightCyan,
-    White,
-
-    fn ansiValue(self: Fg) []const u8 {
-        return switch (self) {
-            Fg.Black => ansi.Foreground(ansi.Black),
-            Fg.Red => ansi.Foreground(ansi.Red),
-            Fg.Green => ansi.Foreground(ansi.Green),
-            Fg.Yellow => ansi.Foreground(ansi.Yellow),
-            Fg.Blue => ansi.Foreground(ansi.Blue),
-            Fg.Magenta => ansi.Foreground(ansi.Magenta),
-            Fg.Cyan => ansi.Foreground(ansi.Cyan),
-            Fg.LightGray => ansi.Foreground(ansi.LightGray),
-            Fg.DarkGray => ansi.Foreground(ansi.DarkGray),
-            Fg.LightRed => ansi.Foreground(ansi.LightRed),
-            Fg.LightGreen => ansi.Foreground(ansi.LightGreen),
-            Fg.LightYellow => ansi.Foreground(ansi.LightYellow),
-            Fg.LightBlue => ansi.Foreground(ansi.LightBlue),
-            Fg.LightMagenta => ansi.Foreground(ansi.LightMagenta),
-            Fg.LightCyan => ansi.Foreground(ansi.LightCyan),
-            Fg.White => ansi.Foreground(ansi.White),
-        };
-    }
-
-    fn winConAttribValue(self: Fg) windows.DWORD {
-        const blue      = windows.FOREGROUND_BLUE;
-        const green     = windows.FOREGROUND_GREEN;
-        const red       = windows.FOREGROUND_RED;
-        const bright    = windows.FOREGROUND_INTENSITY;
-
-        return switch (self) {
-            Fg.Black => 0,
-            Fg.Red => red,
-            Fg.Green => green,
-            Fg.Yellow => green | red,
-            Fg.Blue => blue,
-            Fg.Magenta => red | blue,
-            Fg.Cyan => green | blue,
-            Fg.LightGray => red | green | blue,
-            Fg.DarkGray => bright,
-            Fg.LightRed => red | bright,
-            Fg.LightGreen => green | bright,
-            Fg.LightYellow => red | green | bright,
-            Fg.LightBlue => blue | bright,
-            Fg.LightMagenta => red | blue | bright,
-            Fg.LightCyan => blue | green | bright,
-            Fg.White => red | green | blue | bright,
-        };
-    }
-};
-
-const ColorWriter = struct {
-    const Self = @This();
-
-    writer: std.fs.File.Writer,
-    have_color: bool,
-    handle: std.os.fd_t,
-    orig_attribs: windows.WORD,
-
-    pub fn init(output: std.fs.File) Self {
-        var tmp: windows.CONSOLE_SCREEN_BUFFER_INFO = undefined;
-        _ = Self.GetConsoleScreenBufferInfo(output.handle, &tmp);
-
-        return Self {
-            .writer = output.writer(),
-            .have_color = Self.terminalSupportsAnsiColor(output.handle),
-            .handle = output.handle,
-            .orig_attribs = tmp.wAttributes,
-        };
-    }
-
-    pub fn writeSeq(self: *const Self, seq: anytype) !void {
-        comptime var i: usize = 0;
-        comptime var do_reset = false;
-        inline while (i < seq.len) : (i += 1) {
-            const val = seq[i];
-            switch (@TypeOf(val)) {
-                Fg => {
-                    //if (self.have_color) {
-                    //    try self.writeAll(val.ansiValue());
-                    //    doReset = true;
-                    //}
-                    const foreground_mask = @as(windows.WORD, 0b1111);
-                    const new_attrib = (self.orig_attribs & (~foreground_mask)) | val.winConAttribValue();
-                    _ = Self.SetConsoleTextAttribute(self.handle, new_attrib);
-                    do_reset = true;
-                },
-                else => try self.writeAll(val),
-            }
-        }
-        if (do_reset)
-            _ = Self.SetConsoleTextAttribute(self.handle, self.orig_attribs);
-    }
-
-    pub fn writeAll(self: *const Self, val: []const u8) !void {
-        try self.writer.writeAll(val);
-    }
-
-    extern "kernel32" fn GetConsoleMode(h_console: windows.HANDLE, mode: *windows.DWORD) callconv(windows.WINAPI) windows.BOOL;
-    extern "kernel32" fn GetConsoleScreenBufferInfo(h_console: windows.HANDLE, info: *windows.CONSOLE_SCREEN_BUFFER_INFO) callconv(windows.WINAPI) windows.BOOL;
-    extern "kernel32" fn SetConsoleTextAttribute(h_console: windows.HANDLE, attrib: windows.DWORD) callconv(windows.WINAPI) windows.BOOL;
-
-    pub fn terminalSupportsAnsiColor(handle: std.os.fd_t) bool {
-        if (std.builtin.os.tag == .windows) {
-            var mode: windows.DWORD = 0;
-            if (Self.GetConsoleMode(handle, &mode) != windows.FALSE) {
-                const ENABLE_VIRTUAL_TERMINAL_PROCESSING: windows.DWORD = 0x0004;
-                if (mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING != 0)
-                    return true;            
-            } 
-            // Check if we run under ConEmu
-            const wstr = std.unicode.utf8ToUtf16LeStringLiteral;
-            if (std.os.getenvW(wstr("ConEmuANSI"))) |val| {
-                if (std.mem.eql(u16, val, wstr("ON")))
-                    return true;
-            }
-
-            return false;
-        }
-
-        return true;
-    }
-};
+usingnamespace @import("writer.zig");
 
 /// Caller must free memory.
 pub fn askString(allocator: *std.mem.Allocator, prompt: []const u8, max_size: usize) ![]u8 {
     const in = std.io.getStdIn().reader();
-    const out = ColorWriter.init(std.io.getStdOut());
+    const out = makeOutputWriter(std.io.getStdOut());
 
     try out.writeSeq(.{ Fg.Cyan, "? ", Fg.White, prompt });
 
@@ -156,7 +15,7 @@ pub fn askString(allocator: *std.mem.Allocator, prompt: []const u8, max_size: us
 
 /// Caller must free memory. Max size is recommended to be a high value, like 512.
 pub fn askDirPath(allocator: *std.mem.Allocator, prompt: []const u8, max_size: usize) ![]u8 {
-    const out = ColorWriter.init(std.io.getStdOut());
+    const out = makeOutputWriter(std.io.getStdOut());
 
     while (true) {
         const path = try askString(allocator, prompt, max_size);
@@ -179,7 +38,7 @@ pub fn askDirPath(allocator: *std.mem.Allocator, prompt: []const u8, max_size: u
 
 pub fn askBool(prompt: []const u8) !bool {
     const in = std.io.getStdIn().reader();
-    const out = ColorWriter.init(std.io.getStdOut());
+    const out = makeOutputWriter(std.io.getStdOut());
 
     var buffer: [1]u8 = undefined;
 
@@ -201,7 +60,7 @@ pub fn askBool(prompt: []const u8) !bool {
 
 pub fn askSelectOne(prompt: []const u8, comptime options: type) !options {
     const in = std.io.getStdIn().reader();
-    const out = ColorWriter.init(std.io.getStdOut());
+    const out = makeOutputWriter(std.io.getStdOut());
 
     try out.writeSeq(.{ Fg.Cyan, "? ", Fg.White, prompt, Fg.DarkGray, " (select one)", "\n\n" });
 
