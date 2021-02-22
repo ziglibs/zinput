@@ -4,6 +4,11 @@ const Writer = std.fs.File.Writer;
 
 const targeting_windows = (std.builtin.os.tag == .windows);
 const windows = if (targeting_windows) std.os.windows else undefined;
+const wincon = if (targeting_windows) struct {
+    pub extern "kernel32" fn GetConsoleMode(h_console: windows.HANDLE, mode: *windows.DWORD) callconv(windows.WINAPI) windows.BOOL;
+    pub extern "kernel32" fn GetConsoleScreenBufferInfo(h_console: windows.HANDLE, info: *windows.CONSOLE_SCREEN_BUFFER_INFO) callconv(windows.WINAPI) windows.BOOL;
+    pub extern "kernel32" fn SetConsoleTextAttribute(h_console: windows.HANDLE, attrib: windows.DWORD) callconv(windows.WINAPI) windows.BOOL;         
+} else undefined;
 
 pub const Fg = enum {
     Black,
@@ -107,7 +112,7 @@ const WinConWriter = struct {
 
     pub fn init(writer: Writer) WinConWriter {
         var tmp: windows.CONSOLE_SCREEN_BUFFER_INFO = undefined;
-        _ = WinConWriter.GetConsoleScreenBufferInfo(writer.context.handle, &tmp);
+        _ = wincon.GetConsoleScreenBufferInfo(writer.context.handle, &tmp);
 
         return WinConWriter {
             .writer = writer,
@@ -126,14 +131,14 @@ const WinConWriter = struct {
                 Fg => {
                     const foreground_mask = @as(windows.WORD, 0b1111);
                     const new_attrib = (self.orig_attribs & (~foreground_mask)) | WinConWriter.winConAttribValue(val);
-                    _ = WinConWriter.SetConsoleTextAttribute(handle, new_attrib);
+                    _ = wincon.SetConsoleTextAttribute(handle, new_attrib);
                     do_reset = true;
                 },
                 else => try self.writer.writeAll(val),
             }
         }
         if (do_reset)
-            _ = WinConWriter.SetConsoleTextAttribute(handle, self.orig_attribs);
+            _ = wincon.SetConsoleTextAttribute(handle, self.orig_attribs);
     }    
 
     fn winConAttribValue(fg: Fg) windows.DWORD {
@@ -161,10 +166,6 @@ const WinConWriter = struct {
             Fg.White => red | green | blue | bright,
         };
     }   
-
-    extern "kernel32" fn GetConsoleMode(h_console: windows.HANDLE, mode: *windows.DWORD) callconv(windows.WINAPI) windows.BOOL;
-    extern "kernel32" fn GetConsoleScreenBufferInfo(h_console: windows.HANDLE, info: *windows.CONSOLE_SCREEN_BUFFER_INFO) callconv(windows.WINAPI) windows.BOOL;
-    extern "kernel32" fn SetConsoleTextAttribute(h_console: windows.HANDLE, attrib: windows.DWORD) callconv(windows.WINAPI) windows.BOOL;     
 };
 
 fn targetWriterImpl() type {
@@ -203,12 +204,10 @@ const OutputWriter = struct {
     }
 };
 
-extern "kernel32" fn GetConsoleMode(h: windows.HANDLE, m: *windows.DWORD) callconv(windows.WINAPI) windows.BOOL;
-
 pub fn makeOutputWriter(output: std.fs.File) OutputWriter {
     if (targeting_windows) {
         var mode: windows.DWORD = 0;
-        if (GetConsoleMode(output.handle, &mode) != windows.FALSE) {
+        if (wincon.GetConsoleMode(output.handle, &mode) != windows.FALSE) {
             const ENABLE_VIRTUAL_TERMINAL_PROCESSING: windows.DWORD = 0x0004;
             if (mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING != 0) {
                 return OutputWriter{
