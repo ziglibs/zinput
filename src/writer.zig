@@ -106,7 +106,7 @@ const AnsiWriter = struct {
 };
 
 /// Coloring text using Windows Console API
-const WinConWriter = struct {
+const WinConWriter = if (targeting_windows) struct {
     writer: Writer,
     orig_attribs: windows.DWORD,
 
@@ -166,7 +166,7 @@ const WinConWriter = struct {
             Fg.White => red | green | blue | bright,
         };
     }   
-};
+} else undefined;
 
 const WriterImpl = if (targeting_windows) union(enum) {
     Plain: PlainWriter,
