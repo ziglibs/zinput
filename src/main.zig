@@ -1,11 +1,13 @@
 const std = @import("std");
 const testing = std.testing;
-usingnamespace @import("writer.zig");
+const writer = @import("writer.zig");
+const Fg = writer.Fg;
+const OutputWriter = writer.OutputWriter;
 
 /// Caller must free memory.
 pub fn askString(allocator: *std.mem.Allocator, prompt: []const u8, max_size: usize) ![]u8 {
     const in = std.io.getStdIn().reader();
-    const out = makeOutputWriter(std.io.getStdOut());
+    const out = OutputWriter.init(std.io.getStdOut());
 
     try out.writeSeq(.{ Fg.Cyan, "? ", Fg.White, prompt });
 
@@ -15,7 +17,7 @@ pub fn askString(allocator: *std.mem.Allocator, prompt: []const u8, max_size: us
 
 /// Caller must free memory. Max size is recommended to be a high value, like 512.
 pub fn askDirPath(allocator: *std.mem.Allocator, prompt: []const u8, max_size: usize) ![]u8 {
-    const out = makeOutputWriter(std.io.getStdOut());
+    const out = OutputWriter.init(std.io.getStdOut());
 
     while (true) {
         const path = try askString(allocator, prompt, max_size);
@@ -38,7 +40,7 @@ pub fn askDirPath(allocator: *std.mem.Allocator, prompt: []const u8, max_size: u
 
 pub fn askBool(prompt: []const u8) !bool {
     const in = std.io.getStdIn().reader();
-    const out = makeOutputWriter(std.io.getStdOut());
+    const out = OutputWriter.init(std.io.getStdOut());
 
     var buffer: [1]u8 = undefined;
 
@@ -60,7 +62,7 @@ pub fn askBool(prompt: []const u8) !bool {
 
 pub fn askSelectOne(prompt: []const u8, comptime options: type) !options {
     const in = std.io.getStdIn().reader();
-    const out = makeOutputWriter(std.io.getStdOut());
+    const out = OutputWriter.init(std.io.getStdOut());
 
     try out.writeSeq(.{ Fg.Cyan, "? ", Fg.White, prompt, Fg.DarkGray, " (select one)", "\n\n" });
 

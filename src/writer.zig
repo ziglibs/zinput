@@ -185,7 +185,7 @@ fn targetWriterImpl() type {
 
 const WriterImpl = targetWriterImpl();
 
-const OutputWriter = struct {
+pub const OutputWriter = struct {
     impl: WriterImpl,
 
     pub fn writeSeq(self: *const OutputWriter, seq: anytype) !void {
@@ -202,41 +202,41 @@ const OutputWriter = struct {
             }
         }
     }
-};
 
-pub fn makeOutputWriter(output: std.fs.File) OutputWriter {
-    if (targeting_windows) {
-        var mode: windows.DWORD = 0;
-        if (wincon.GetConsoleMode(output.handle, &mode) != windows.FALSE) {
-            const ENABLE_VIRTUAL_TERMINAL_PROCESSING: windows.DWORD = 0x0004;
-            if (mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING != 0) {
+    pub fn init(output: std.fs.File) OutputWriter {
+        if (targeting_windows) {
+            var mode: windows.DWORD = 0;
+            if (wincon.GetConsoleMode(output.handle, &mode) != windows.FALSE) {
+                const ENABLE_VIRTUAL_TERMINAL_PROCESSING: windows.DWORD = 0x0004;
+                if (mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING != 0) {
+                    return OutputWriter{
+                        .impl = WriterImpl{ .Ansi = AnsiWriter.init(output.writer()) },
+                    };
+                }
+            } else {
                 return OutputWriter{
-                    .impl = WriterImpl{ .Ansi = AnsiWriter.init(output.writer()) },
+                    .impl = WriterImpl{ .Plain = PlainWriter.init(output.writer()) },
                 };
             }
-        } else {
+
+            // Check if we run under ConEmu
+            const wstr = std.unicode.utf8ToUtf16LeStringLiteral;
+            if (std.os.getenvW(wstr("ConEmuANSI"))) |val| {
+                if (std.mem.eql(u16, val, wstr("ON"))) {
+                    return OutputWriter{
+                        .impl = WriterImpl{ .Ansi = AnsiWriter.init(output.writer()) },
+                    };
+                }
+            }
+
             return OutputWriter{
-                .impl = WriterImpl{ .Plain = PlainWriter.init(output.writer()) },
+                .impl = WriterImpl{ .WinCon = WinConWriter.init(output.writer()) },
+            };
+        } else {
+            // TODO: Examine isatty() & env(TERM) to make a decision
+            return OutputWriter{
+                .impl = WriterImpl{ .Ansi = AnsiWriter.init(output.writer()) },
             };
         }
-
-        // Check if we run under ConEmu
-        const wstr = std.unicode.utf8ToUtf16LeStringLiteral;
-        if (std.os.getenvW(wstr("ConEmuANSI"))) |val| {
-            if (std.mem.eql(u16, val, wstr("ON"))) {
-                return OutputWriter{
-                    .impl = WriterImpl{ .Ansi = AnsiWriter.init(output.writer()) },
-                };
-            }
-        }
-
-        return OutputWriter{
-            .impl = WriterImpl{ .WinCon = WinConWriter.init(output.writer()) },
-        };
-    } else {
-        // TODO: Examine isatty() & env(TERM) to make a decision
-        return OutputWriter{
-            .impl = WriterImpl{ .Ansi = AnsiWriter.init(output.writer()) },
-        };
     }
-}
+};
