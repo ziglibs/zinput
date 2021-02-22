@@ -1,15 +1,15 @@
 const std = @import("std");
-const ansi = @import("ansi.zig");
 const testing = std.testing;
+const writer = @import("writer.zig");
+const Fg = writer.Fg;
+const OutputWriter = writer.OutputWriter;
 
 /// Caller must free memory.
 pub fn askString(allocator: *std.mem.Allocator, prompt: []const u8, max_size: usize) ![]u8 {
     const in = std.io.getStdIn().reader();
-    const out = std.io.getStdOut().writer();
+    const out = OutputWriter.init(std.io.getStdOut());
 
-    try out.writeAll(ansi.Foreground(ansi.Cyan) ++ "? " ++ ansi.Foreground(ansi.White));
-    try out.writeAll(prompt);
-    try out.writeAll(ansi.Foreground(ansi.DarkGray) ++ " > " ++ ansi.Reset());
+    try out.writeSeq(.{ Fg.Cyan, "? ", Fg.White, prompt });
 
     const result = try in.readUntilDelimiterAlloc(allocator, '\n', max_size);
     return if (std.mem.endsWith(u8, result, "\r")) result[0..(result.len - 1)] else result;
@@ -17,18 +17,18 @@ pub fn askString(allocator: *std.mem.Allocator, prompt: []const u8, max_size: us
 
 /// Caller must free memory. Max size is recommended to be a high value, like 512.
 pub fn askDirPath(allocator: *std.mem.Allocator, prompt: []const u8, max_size: usize) ![]u8 {
-    const out = std.io.getStdOut().writer();
+    const out = OutputWriter.init(std.io.getStdOut());
 
     while (true) {
         const path = try askString(allocator, prompt, max_size);
         if (!std.fs.path.isAbsolute(path)) {
-            try out.writeAll(ansi.Foreground(ansi.Red) ++ "Error: Invalid directory, please try again.\n\n" ++ ansi.Reset());
+            try out.writeSeq(.{ Fg.Red, "Error: Invalid directory, please try again.\n\n" });
             allocator.free(path);
             continue;
         }
 
         var dir = std.fs.cwd().openDir(path, std.fs.Dir.OpenDirOptions{}) catch {
-            try out.writeAll(ansi.Foreground(ansi.Red) ++ "Error: Invalid directory, please try again.\n\n" ++ ansi.Reset());
+            try cw.writeSequence(.{ Fg.Red, "Error: Invalid directory, please try again.\n\n"});
             allocator.free(path);
             continue;
         };
@@ -40,14 +40,12 @@ pub fn askDirPath(allocator: *std.mem.Allocator, prompt: []const u8, max_size: u
 
 pub fn askBool(prompt: []const u8) !bool {
     const in = std.io.getStdIn().reader();
-    const out = std.io.getStdOut().writer();
+    const out = OutputWriter.init(std.io.getStdOut());
 
     var buffer: [1]u8 = undefined;
 
     while (true) {
-        try out.writeAll(ansi.Foreground(ansi.Cyan) ++ "? " ++ ansi.Foreground(ansi.White));
-        try out.writeAll(prompt);
-        try out.writeAll(ansi.Foreground(ansi.DarkGray) ++ " (y/n) > " ++ ansi.Reset());
+        try out.writeSeq(.{ Fg.Cyan, "? ", Fg.White, prompt, Fg.DarkGray, " (y/n) > " });
 
         const read = in.read(&buffer) catch continue;
         try in.skipUntilDelimiterOrEof('\n');
@@ -64,29 +62,24 @@ pub fn askBool(prompt: []const u8) !bool {
 
 pub fn askSelectOne(prompt: []const u8, comptime options: type) !options {
     const in = std.io.getStdIn().reader();
-    const out = std.io.getStdOut().writer();
+    const out = OutputWriter.init(std.io.getStdOut());
 
-    try out.writeAll(ansi.Foreground(ansi.Cyan) ++ "? " ++ ansi.Foreground(ansi.White));
-    try out.writeAll(prompt);
-    try out.writeAll(ansi.Foreground(ansi.DarkGray) ++ " (select one)" ++ ansi.Reset() ++ "\n\n");
+    try out.writeSeq(.{ Fg.Cyan, "? ", Fg.White, prompt, Fg.DarkGray, " (select one)", "\n\n" });
 
     comptime var max_size: usize = 0;
     inline for (@typeInfo(options).Enum.fields) |option| {
-        try out.writeAll("  - ");
-        try out.writeAll(option.name);
-        try out.writeAll("\n");
-
+        try out.writeSeq(.{ "  - ", option.name, "\n" });
         if (option.name.len > max_size) max_size = option.name.len;
     }
 
     while (true) {
         var buffer: [max_size + 1]u8 = undefined;
 
-        try out.writeAll(ansi.Foreground(ansi.DarkGray) ++ "\n>" ++ ansi.Reset() ++ " ");
+        try out.writeSeq(.{ Fg.DarkGray, "\n>", " " });
 
         var result = (in.readUntilDelimiterOrEof(&buffer, '\n') catch {
             try in.skipUntilDelimiterOrEof('\n');
-            try out.writeAll(ansi.Foreground(ansi.Red) ++ "Error: Invalid option, please try again.\n" ++ ansi.Reset());
+            try out.writeSeq(.{ Fg.Red, "Error: Invalid option, please try again.\n" });
             continue;
         }) orelse return error.EndOfStream;
         result = if (std.mem.endsWith(u8, result, "\r")) result[0..(result.len - 1)] else result;
@@ -96,7 +89,7 @@ pub fn askSelectOne(prompt: []const u8, comptime options: type) !options {
                 return @intToEnum(options, option.value);
         // return option.value;
 
-        try out.writeAll(ansi.Foreground(ansi.Red) ++ "Error: Invalid option, please try again.\n" ++ ansi.Reset());
+        try out.writeSeq(.{ Fg.Red, "Error: Invalid option, please try again.\n" });
     }
 
     // return undefined;
