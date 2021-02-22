@@ -3,12 +3,12 @@ const ansi = @import("ansi.zig");
 const Writer = std.fs.File.Writer;
 
 const targeting_windows = (std.builtin.os.tag == .windows);
-const windows = if (targeting_windows) std.os.windows else undefined;
-const wincon = if (targeting_windows) struct {
+const windows = std.os.windows;
+const wincon = struct {
     pub extern "kernel32" fn GetConsoleMode(h_console: windows.HANDLE, mode: *windows.DWORD) callconv(windows.WINAPI) windows.BOOL;
     pub extern "kernel32" fn GetConsoleScreenBufferInfo(h_console: windows.HANDLE, info: *windows.CONSOLE_SCREEN_BUFFER_INFO) callconv(windows.WINAPI) windows.BOOL;
     pub extern "kernel32" fn SetConsoleTextAttribute(h_console: windows.HANDLE, attrib: windows.DWORD) callconv(windows.WINAPI) windows.BOOL;         
-} else undefined;
+};
 
 pub const Fg = enum {
     Black,
@@ -168,22 +168,14 @@ const WinConWriter = struct {
     }   
 };
 
-fn targetWriterImpl() type {
-    if (targeting_windows) {
-        return union(enum) {
-            Plain: PlainWriter,
-            Ansi: AnsiWriter,
-            WinCon: WinConWriter,
-        };
-    } else {
-        return union(enum) {
-            Plain: PlainWriter,
-            Ansi: AnsiWriter,
-        };
-    }
-}
-
-const WriterImpl = targetWriterImpl();
+const WriterImpl = if (targeting_windows) union(enum) {
+    Plain: PlainWriter,
+    Ansi: AnsiWriter,
+    WinCon: WinConWriter,
+} else union(enum) {
+    Plain: PlainWriter,
+    Ansi: AnsiWriter,
+};
 
 pub const OutputWriter = struct {
     impl: WriterImpl,
