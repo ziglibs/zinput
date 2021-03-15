@@ -7,7 +7,7 @@ const windows = std.os.windows;
 const wincon = struct {
     pub extern "kernel32" fn GetConsoleMode(h_console: windows.HANDLE, mode: *windows.DWORD) callconv(windows.WINAPI) windows.BOOL;
     pub extern "kernel32" fn GetConsoleScreenBufferInfo(h_console: windows.HANDLE, info: *windows.CONSOLE_SCREEN_BUFFER_INFO) callconv(windows.WINAPI) windows.BOOL;
-    pub extern "kernel32" fn SetConsoleTextAttribute(h_console: windows.HANDLE, attrib: windows.DWORD) callconv(windows.WINAPI) windows.BOOL;         
+    pub extern "kernel32" fn SetConsoleTextAttribute(h_console: windows.HANDLE, attrib: windows.DWORD) callconv(windows.WINAPI) windows.BOOL;
 };
 
 pub const Fg = enum {
@@ -34,7 +34,7 @@ const PlainWriter = struct {
     writer: Writer,
 
     pub fn init(writer: Writer) PlainWriter {
-        return PlainWriter{  
+        return PlainWriter{
             .writer = writer,
         };
     }
@@ -44,10 +44,10 @@ const PlainWriter = struct {
         inline while (i < seq.len) : (i += 1) {
             const val = seq[i];
             switch (@TypeOf(val)) {
-                Fg => { },
+                Fg => {},
                 else => {
                     try self.writer.writeAll(val);
-                }
+                },
             }
         }
     }
@@ -58,11 +58,11 @@ const AnsiWriter = struct {
     writer: Writer,
 
     pub fn init(writer: Writer) AnsiWriter {
-        return AnsiWriter{  
+        return AnsiWriter{
             .writer = writer,
         };
     }
- 
+
     pub fn writeSeq(self: *const AnsiWriter, seq: anytype) !void {
         comptime var i: usize = 0;
         comptime var do_reset = false;
@@ -75,7 +75,7 @@ const AnsiWriter = struct {
                 },
                 else => {
                     try self.writer.writeAll(val);
-                }
+                },
             }
         }
         if (do_reset) {
@@ -101,12 +101,12 @@ const AnsiWriter = struct {
             Fg.LightMagenta => ansi.Foreground(ansi.LightMagenta),
             Fg.LightCyan => ansi.Foreground(ansi.LightCyan),
             Fg.White => ansi.Foreground(ansi.White),
-        };        
+        };
     }
 };
 
 /// Coloring text using Windows Console API
-const WinConWriter = if (targeting_windows) struct {
+const WinConWriter = struct {
     writer: Writer,
     orig_attribs: windows.DWORD,
 
@@ -114,7 +114,7 @@ const WinConWriter = if (targeting_windows) struct {
         var tmp: windows.CONSOLE_SCREEN_BUFFER_INFO = undefined;
         _ = wincon.GetConsoleScreenBufferInfo(writer.context.handle, &tmp);
 
-        return WinConWriter {
+        return WinConWriter{
             .writer = writer,
             .orig_attribs = tmp.wAttributes,
         };
@@ -139,13 +139,13 @@ const WinConWriter = if (targeting_windows) struct {
         }
         if (do_reset)
             _ = wincon.SetConsoleTextAttribute(handle, self.orig_attribs);
-    }    
+    }
 
     fn winConAttribValue(fg: Fg) windows.DWORD {
-        const blue      = windows.FOREGROUND_BLUE;
-        const green     = windows.FOREGROUND_GREEN;
-        const red       = windows.FOREGROUND_RED;
-        const bright    = windows.FOREGROUND_INTENSITY;
+        const blue = windows.FOREGROUND_BLUE;
+        const green = windows.FOREGROUND_GREEN;
+        const red = windows.FOREGROUND_RED;
+        const bright = windows.FOREGROUND_INTENSITY;
 
         return switch (fg) {
             Fg.Black => 0,
@@ -165,17 +165,20 @@ const WinConWriter = if (targeting_windows) struct {
             Fg.LightCyan => blue | green | bright,
             Fg.White => red | green | blue | bright,
         };
-    }   
-} else undefined;
-
-const WriterImpl = if (targeting_windows) union(enum) {
-    Plain: PlainWriter,
-    Ansi: AnsiWriter,
-    WinCon: WinConWriter,
-} else union(enum) {
-    Plain: PlainWriter,
-    Ansi: AnsiWriter,
+    }
 };
+
+const WriterImpl = if (targeting_windows)
+    union(enum) {
+        Plain: PlainWriter,
+        Ansi: AnsiWriter,
+        WinCon: WinConWriter,
+    }
+else
+    union(enum) {
+        Plain: PlainWriter,
+        Ansi: AnsiWriter,
+    };
 
 pub const OutputWriter = struct {
     impl: WriterImpl,
