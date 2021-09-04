@@ -28,7 +28,7 @@ pub fn askDirPath(allocator: *std.mem.Allocator, prompt: []const u8, max_size: u
         }
 
         var dir = std.fs.cwd().openDir(path, std.fs.Dir.OpenDirOptions{}) catch {
-            try cw.writeSequence(.{ Fg.Red, "Error: Invalid directory, please try again.\n\n" });
+            try out.writeSeq(.{ Fg.Red, "Error: Invalid directory, please try again.\n\n" });
             allocator.free(path);
             continue;
         };
