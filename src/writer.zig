@@ -1,8 +1,9 @@
 const std = @import("std");
 const ansi = @import("ansi.zig");
 const Writer = std.fs.File.Writer;
+const builtin = @import("builtin");
 
-const targeting_windows = (std.builtin.os.tag == .windows);
+const targeting_windows = (builtin.os.tag == .windows);
 const windows = std.os.windows;
 const wincon = struct {
     pub extern "kernel32" fn GetConsoleMode(h_console: windows.HANDLE, mode: *windows.DWORD) callconv(windows.WINAPI) windows.BOOL;
