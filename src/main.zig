@@ -5,7 +5,7 @@ const Fg = writer.Fg;
 const OutputWriter = writer.OutputWriter;
 
 /// Caller must free memory.
-pub fn askString(allocator: *std.mem.Allocator, prompt: []const u8, max_size: usize) ![]u8 {
+pub fn askString(allocator: std.mem.Allocator, prompt: []const u8, max_size: usize) ![]u8 {
     const in = std.io.getStdIn().reader();
     const out = OutputWriter.init(std.io.getStdOut());
 
@@ -16,7 +16,7 @@ pub fn askString(allocator: *std.mem.Allocator, prompt: []const u8, max_size: us
 }
 
 /// Caller must free memory. Max size is recommended to be a high value, like 512.
-pub fn askDirPath(allocator: *std.mem.Allocator, prompt: []const u8, max_size: usize) ![]u8 {
+pub fn askDirPath(allocator: std.mem.Allocator, prompt: []const u8, max_size: usize) ![]u8 {
     const out = OutputWriter.init(std.io.getStdOut());
 
     while (true) {
