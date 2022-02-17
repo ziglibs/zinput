@@ -73,7 +73,7 @@ pub fn askSelectOne(prompt: []const u8, comptime options: type) !options {
     }
 
     while (true) {
-        var buffer: [max_size + 1]u8 = undefined;
+        var buffer: [max_size + 2]u8 = undefined;
 
         try out.writeSeq(.{ Fg.DarkGray, "\n>", " " });
 
