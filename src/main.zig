@@ -9,7 +9,7 @@ pub fn askString(allocator: std.mem.Allocator, prompt: []const u8, max_size: usi
     const in = std.io.getStdIn().reader();
     const out = OutputWriter.init(std.io.getStdOut());
 
-    try out.writeSeq(.{ Fg.Cyan, "? ", Fg.White, prompt });
+    try out.writeSeq(.{ Fg.Bold, "? ", Fg.Reset, prompt });
 
     const result = try in.readUntilDelimiterAlloc(allocator, '\n', max_size);
     return if (std.mem.endsWith(u8, result, "\r")) result[0..(result.len - 1)] else result;
@@ -38,6 +38,7 @@ pub fn askDirPath(allocator: std.mem.Allocator, prompt: []const u8, max_size: us
     }
 }
 
+
 pub fn askBool(prompt: []const u8) !bool {
     const in = std.io.getStdIn().reader();
     const out = OutputWriter.init(std.io.getStdOut());
@@ -45,7 +46,7 @@ pub fn askBool(prompt: []const u8) !bool {
     var buffer: [1]u8 = undefined;
 
     while (true) {
-        try out.writeSeq(.{ Fg.Cyan, "? ", Fg.White, prompt, Fg.DarkGray, " (y/n) > " });
+        try out.writeSeq(.{ Fg.Bold, "? ", Fg.Reset, prompt, Fg.Bold, " (y/n) > " });
 
         const read = in.read(&buffer) catch continue;
         try in.skipUntilDelimiterOrEof('\n');
@@ -64,7 +65,7 @@ pub fn askSelectOne(prompt: []const u8, comptime options: type) !options {
     const in = std.io.getStdIn().reader();
     const out = OutputWriter.init(std.io.getStdOut());
 
-    try out.writeSeq(.{ Fg.Cyan, "? ", Fg.White, prompt, Fg.DarkGray, " (select one)", "\n\n" });
+    try out.writeSeq(.{ Fg.Bold, "? ", Fg.Reset, prompt, Fg.Bold, " (select one)", "\n\n" });
 
     comptime var max_size: usize = 0;
     inline for (@typeInfo(options).Enum.fields) |option| {
