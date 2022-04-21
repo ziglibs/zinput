@@ -20,10 +20,14 @@ pub const LightBlue    = "94";
 pub const LightMagenta = "95";
 pub const LightCyan    = "96";
 pub const White        = "97";
+
+pub const ResetText    = "0";
+pub const Bold         = "1";
+pub const Underline    = "4";
 // zig fmt: on
 
 pub fn Reset() []const u8 {
-    return escape("0m");
+    return escape(ResetText ++ "m");
 }
 
 pub fn Foreground(comptime color: []const u8) []const u8 {

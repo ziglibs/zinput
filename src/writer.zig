@@ -20,6 +20,7 @@ pub const Fg = enum {
     Magenta,
     Cyan,
     LightGray,
+    Default,
     DarkGray,
     LightRed,
     LightGreen,
@@ -28,6 +29,10 @@ pub const Fg = enum {
     LightMagenta,
     LightCyan,
     White,
+    // Those are for formatting rather than color
+    Reset,
+    Bold,
+    Underline
 };
 
 /// Ignores color specifications
@@ -95,6 +100,7 @@ const AnsiWriter = struct {
             Fg.Cyan => ansi.Foreground(ansi.Cyan),
             Fg.LightGray => ansi.Foreground(ansi.LightGray),
             Fg.DarkGray => ansi.Foreground(ansi.DarkGray),
+            Fg.Default => ansi.Foreground(ansi.Default),
             Fg.LightRed => ansi.Foreground(ansi.LightRed),
             Fg.LightGreen => ansi.Foreground(ansi.LightGreen),
             Fg.LightYellow => ansi.Foreground(ansi.LightYellow),
@@ -102,6 +108,9 @@ const AnsiWriter = struct {
             Fg.LightMagenta => ansi.Foreground(ansi.LightMagenta),
             Fg.LightCyan => ansi.Foreground(ansi.LightCyan),
             Fg.White => ansi.Foreground(ansi.White),
+            Fg.Reset => ansi.Foreground(ansi.ResetText),
+            Fg.Bold => ansi.Foreground(ansi.Bold),
+            Fg.Underline => ansi.Foreground(ansi.Underline),
         };
     }
 };
