@@ -86,7 +86,7 @@ pub fn askSelectOne(prompt: []const u8, comptime options: type) !options {
 
         inline for (@typeInfo(options).Enum.fields) |option|
             if (std.ascii.eqlIgnoreCase(option.name, result))
-                return @intToEnum(options, option.value);
+                return std.meta.intToEnum(options, option.value);
         // return option.value;
 
         try out.writeSeq(.{ Fg.Red, "Error: Invalid option, please try again.\n" });
